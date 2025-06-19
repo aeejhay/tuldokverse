@@ -10,9 +10,23 @@ const postRoutes = require('./routes/postRoutes');
 
 const app = express();
 
+// CORS configuration for frontend integration
+const corsOptions = {
+  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+
 // Middleware
+app.use(cors(corsOptions));
 app.use(express.json());
-app.use(cors());
+app.use(express.urlencoded({ extended: true }));
+
+// Request logging middleware
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  next();
+});
 
 // DEBUG: Check if environment variables are loaded correctly
 console.log("🔧 Environment Check:");
@@ -22,6 +36,7 @@ console.log("DB_PASSWORD:", process.env.DB_PASSWORD ? "***" : "Not set");
 console.log("DB_DATABASE:", process.env.DB_DATABASE);
 console.log("JWT_SECRET:", process.env.JWT_SECRET ? "***" : "Using default");
 console.log("XRPL_NODE_URL:", process.env.XRPL_NODE_URL || "Using default");
+console.log("FRONTEND_URL:", process.env.FRONTEND_URL || "http://localhost:3000");
 
 // Initialize database and start server
 const startServer = async () => {
@@ -42,7 +57,9 @@ const startServer = async () => {
       res.json({
         message: 'TULDOK Social Backend Running! 🚀',
         version: '1.0.0',
+        timestamp: new Date().toISOString(),
         endpoints: {
+          health: 'GET /api/health',
           auth: {
             register: 'POST /api/register',
             login: 'POST /api/login',
@@ -71,7 +88,8 @@ const startServer = async () => {
     app.use('*', (req, res) => {
       res.status(404).json({
         success: false,
-        message: 'Endpoint not found'
+        message: 'Endpoint not found',
+        path: req.originalUrl
       });
     });
 
@@ -80,6 +98,8 @@ const startServer = async () => {
       console.log(`🚀 TULDOK Social Backend Server started on port ${PORT}`);
       console.log(`📡 API available at: http://localhost:${PORT}`);
       console.log(`🔗 Health check: http://localhost:${PORT}/`);
+      console.log(`🏥 API Health: http://localhost:${PORT}/api/health`);
+      console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
     });
 
   } catch (error) {
@@ -87,6 +107,17 @@ const startServer = async () => {
     process.exit(1);
   }
 };
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('🛑 SIGTERM received, shutting down gracefully');
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('🛑 SIGINT received, shutting down gracefully');
+  process.exit(0);
+});
 
 // Start the server
 startServer();

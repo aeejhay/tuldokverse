@@ -10,7 +10,7 @@ const {
 // Create Post - POST /api/post (requires authentication)
 router.post('/post', verifyToken, createPost);
 
-// Get User Posts - GET /api/posts/:wallet_address
+// Get User Posts - GET /api/posts/:walletAddress
 router.get('/posts/:walletAddress', getUserPosts);
 
 // Get All Posts (Feed) - GET /api/posts

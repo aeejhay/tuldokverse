@@ -74,6 +74,12 @@ const validateWalletAddress = (address) => {
 // User Registration Controller
 const registerUser = async (req, res) => {
   try {
+    console.log('📝 Registration request received:', {
+      walletAddress: req.body.walletAddress,
+      email: req.body.email,
+      name: req.body.name
+    });
+
     const { walletAddress, email, phone, name } = req.body;
 
     // Input validation
@@ -165,7 +171,7 @@ const registerUser = async (req, res) => {
     // Return success response
     res.status(201).json({
       success: true,
-      message: 'User registered successfully!',
+      message: 'User registered successfully! Welcome to TULDOK Social! 🎉',
       data: {
         userId: result.insertId,
         walletAddress: walletAddress,
@@ -186,6 +192,13 @@ const registerUser = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: error.message
+      });
+    }
+
+    if (error.message.includes('Account not found')) {
+      return res.status(400).json({
+        success: false,
+        message: 'Wallet address not found on XRPL. Please check the address and try again.'
       });
     }
 
@@ -308,10 +321,36 @@ const getUserProfile = async (req, res) => {
   }
 };
 
+// Health check endpoint
+const healthCheck = async (req, res) => {
+  try {
+    // Test database connection
+    await db.execute('SELECT 1');
+    
+    res.status(200).json({
+      success: true,
+      message: 'TULDOK Social Backend is healthy! 🚀',
+      timestamp: new Date().toISOString(),
+      services: {
+        database: 'connected',
+        xrpl: 'ready'
+      }
+    });
+  } catch (error) {
+    console.error('❌ Health check failed:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Service unhealthy',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
   getUserProfile,
+  healthCheck,
   checkTuldokBalance,
   validateWalletAddress
 }; 
