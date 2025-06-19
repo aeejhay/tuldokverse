@@ -6,7 +6,7 @@ A blockchain-based social media platform using XRPL and XUMM Wallet integration.
 
 ```
 tuldokverse/
-├── backend/           # Express.js server
+├── backend/          # Express.js server
 │   ├── config/       # Database and initialization configuration
 │   ├── controllers/  # Request handlers
 │   ├── routes/       # API routes

@@ -1,3 +1,4 @@
+// Make sure your users table has: verified BOOLEAN, verification_token VARCHAR(255)
 const mysql = require('mysql2');
 
 const pool = mysql.createPool({
