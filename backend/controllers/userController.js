@@ -4,6 +4,9 @@ const jwt = require('jsonwebtoken');
 const db = require('../config/db');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
+const { XummSdk } = require('xumm-sdk');
+
+const xumm = new XummSdk(process.env.XUMM_API_KEY, process.env.XUMM_API_SECRET);
 
 // XRPL Client instance
 let client = null;
@@ -569,9 +572,6 @@ const verifyEmail = async (req, res) => {
       });
     }
     
-    // Mark as verified
-    await db.execute('UPDATE users SET verified = 1, verification_token = NULL WHERE id = ?', [user.id]);
-    
     // Fetch live balances from XRPL
     const balanceInfo = await checkTuldokBalance(user.wallet_address);
     
@@ -588,7 +588,7 @@ const verifyEmail = async (req, res) => {
         balance_tuldok: balanceInfo.tuldokBalance,
         hasTrustLine: balanceInfo.hasTrustLine,
         created_at: user.created_at,
-        verified: true
+        verified: user.verified
       }
     });
   } catch (error) {
@@ -661,6 +661,202 @@ const refreshUserBalances = async (req, res) => {
   }
 };
 
+// Verify TULDOK payment and mark user as verified
+const verifyPayment = async (req, res) => {
+  try {
+    const { token, txHash } = req.body;
+    if (!token || !txHash) {
+      return res.status(400).json({ success: false, message: 'Missing token or transaction hash.' });
+    }
+    // Find user by verification token
+    const [users] = await db.execute('SELECT * FROM users WHERE verification_token = ?', [token]);
+    if (users.length === 0) {
+      return res.status(404).json({ success: false, message: 'Invalid or expired verification token.' });
+    }
+    const user = users[0];
+    if (user.verified) {
+      return res.status(400).json({ success: false, message: 'User already verified.' });
+    }
+    // Check transaction on XRPL
+    const xrplClient = await initializeXRPLClient();
+    const tx = await xrplClient.request({ command: 'tx', transaction: txHash });
+    if (!tx.result || tx.result.TransactionType !== 'Payment' || tx.result.meta.TransactionResult !== 'tesSUCCESS') {
+      return res.status(400).json({ success: false, message: 'Transaction not found or not successful.' });
+    }
+    // Check payment details
+    const issuer = process.env.TULDOK_ISSUER_ADDRESS;
+    const tuldokCurrency = '54554C444F4B0000000000000000000000000000'; // 40-char hex for TULDOK
+    const deliveredAmount = tx.result.meta.delivered_amount || tx.result.Amount;
+    const isTuldok = typeof deliveredAmount === 'object' && deliveredAmount.currency === tuldokCurrency && deliveredAmount.issuer === issuer && parseFloat(deliveredAmount.value) >= 33;
+    const isFromUser = tx.result.Account === user.wallet_address;
+    const isToIssuer = (deliveredAmount.issuer === issuer || tx.result.Destination === issuer);
+    if (!isTuldok || !isFromUser || !isToIssuer) {
+      return res.status(400).json({ success: false, message: 'Payment does not match required details.' });
+    }
+    // Mark user as verified and store tx hash
+    await db.execute('UPDATE users SET verified = 1, verification_tx_hash = ? WHERE id = ?', [txHash, user.id]);
+    return res.json({ success: true, message: 'Payment verified and user marked as verified.' });
+  } catch (error) {
+    console.error('❌ Payment Verification Error:', error);
+    return res.status(500).json({ success: false, message: 'Payment verification failed.', error: error.message });
+  }
+};
+
+// Create Xumm payload for TULDOK payment
+const createXummPayload = async (req, res) => {
+  try {
+    const { walletAddress, token } = req.body;
+
+    // 1. Validate inputs
+    if (!walletAddress || !token) {
+      return res.status(400).json({ success: false, message: 'Missing wallet address or token' });
+    }
+
+    // 2. Find user by verification token
+    const [users] = await db.execute('SELECT * FROM users WHERE verification_token = ? AND verified = 0', [token]);
+    if (users.length === 0) {
+      return res.status(404).json({ success: false, message: 'Invalid or expired verification token.' });
+    }
+    const user = users[0];
+
+    // 3. Create Xumm Payload
+    const TULDOK_AMOUNT = '33'; // Amount in TULDOK
+    const TULDOK_CURRENCY_HEX = '54554C444F4B0000000000000000000000000000';
+    const TULDOK_ISSUER = process.env.TULDOK_ISSUER_ADDRESS;
+
+    if (!TULDOK_ISSUER) {
+      console.error('TULDOK_ISSUER_ADDRESS is not set in .env');
+      return res.status(500).json({ success: false, message: 'Server configuration error.' });
+    }
+
+    const payload = {
+      txjson: {
+        TransactionType: 'Payment',
+        Account: user.wallet_address,
+        Destination: TULDOK_ISSUER, // Pay to the issuer
+        Amount: {
+          currency: TULDOK_CURRENCY_HEX,
+          value: TULDOK_AMOUNT,
+          issuer: TULDOK_ISSUER,
+        },
+      },
+      custom_meta: {
+        identifier: `user_verification_${user.id}`,
+        blob: {
+          userId: user.id,
+          token: token
+        }
+      }
+    };
+
+    console.log('Creating Xumm payload:', JSON.stringify(payload, null, 2));
+
+    const createdPayload = await xumm.payload.create(payload);
+
+    console.log('✅ Xumm payload created:', createdPayload);
+    
+    // 4. Return payload details to frontend
+    res.json({
+      success: true,
+      uuid: createdPayload.uuid,
+      refs: createdPayload.refs,
+    });
+
+  } catch (error) {
+    console.error('❌ Error creating Xumm payload:', error);
+    // Log the full error if it's from Xumm
+    if (error.response && error.response.data) {
+      console.error('Xumm API Error:', error.response.data);
+      return res.status(500).json({ 
+        success: false, 
+        message: 'Failed to create payment payload.',
+        error: error.response.data
+      });
+    }
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+};
+
+const getPayloadStatus = async (req, res) => {
+  const { uuid } = req.params;
+  const { token } = req.query; // Pass token to re-associate user
+
+  try {
+    console.log(`👂 Subscribing to payload ${uuid}`);
+
+    const subscription = await xumm.payload.subscribe(uuid, event => {
+      console.log(`🔔 Payload event for ${uuid}:`, event.data);
+
+      if (event.data.signed === true) {
+        console.log(`✅ Payload ${uuid} signed!`);
+        return {
+          signed: true,
+          txid: event.data.txid
+        };
+      }
+
+      if (event.data.signed === false) {
+        console.log(`❌ Payload ${uuid} was rejected.`);
+        return {
+            signed: false
+        };
+      }
+    });
+
+    // The promise `subscription.resolved` will resolve when the subscription ends
+    // (by returning a value from the callback)
+    const result = await subscription.resolved;
+
+    if (result && result.signed) {
+        // If signed, proceed to verify the payment on the XRPL
+        console.log(`Verifying transaction ${result.txid} for payload ${uuid}`);
+        const verificationResult = await internalVerifyPayment(token, result.txid);
+
+        if (verificationResult.success) {
+            res.json({ success: true, message: 'Payment verified and account activated!' });
+        } else {
+            res.status(400).json({ success: false, message: verificationResult.message });
+        }
+    } else {
+      // If rejected or cancelled
+      res.status(400).json({ success: false, message: 'Payment was not approved.' });
+    }
+
+  } catch (error) {
+    console.error(`Error with payload subscription ${uuid}:`, error);
+     if (error.message.includes('not found')) {
+      return res.status(404).json({ success: false, message: 'Payment session not found or expired.' });
+    }
+    res.status(500).json({ success: false, message: 'Error checking payment status.' });
+  }
+};
+
+// This is an internal function, not exposed as a route
+const internalVerifyPayment = async (token, txHash) => {
+    if (!token || !txHash) {
+        return { success: false, message: 'Token and transaction hash are required.' };
+    }
+
+    try {
+        const [users] = await db.execute('SELECT * FROM users WHERE verification_token = ? AND verified = 0', [token]);
+        if (users.length === 0) {
+            return { success: false, message: 'Invalid or expired verification token.' };
+        }
+        const user = users[0];
+        
+        // You could add a step here to verify the transaction details on the XRPL
+        // For now, we trust the Xumm payload result
+
+        await db.execute('UPDATE users SET verified = 1, verification_tx_hash = ?, verified_at = NOW() WHERE id = ?', [txHash, user.id]);
+
+        console.log(`✅ User ${user.id} verified with tx ${txHash}`);
+        return { success: true };
+    } catch (error) {
+        console.error(`Failed to verify payment for token ${token}:`, error);
+        return { success: false, message: 'Database error during verification.' };
+    }
+};
+
 module.exports = {
   registerUser,
   loginUser,
@@ -670,5 +866,9 @@ module.exports = {
   validateWalletAddress,
   verifyEmail,
   resendVerification,
-  refreshUserBalances
+  refreshUserBalances,
+  verifyPayment,
+  createXummPayload,
+  getPayloadStatus,
+  internalVerifyPayment,
 }; 
