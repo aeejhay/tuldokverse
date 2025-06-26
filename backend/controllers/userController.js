@@ -338,6 +338,8 @@ const loginUser = async (req, res) => {
     }
 
     const user = users[0];
+    console.log('🔍 Backend - Login user data from database:', user);
+    console.log('🔍 Backend - Login verification status:', user.verified, 'Type:', typeof user.verified);
 
     // Check if user is verified
     if (!user.verified) {
@@ -346,7 +348,7 @@ const loginUser = async (req, res) => {
         message: 'Email not verified. Please check your email and click the verification link.',
         data: {
           userId: user.id,
-          walletAddress: user.wallet_address,
+          wallet_address: user.wallet_address,
           email: user.email,
           name: user.name,
           verified: false
@@ -362,7 +364,7 @@ const loginUser = async (req, res) => {
     const token = jwt.sign(
       { 
         userId: user.id, 
-        walletAddress: user.wallet_address,
+        wallet_address: user.wallet_address,
         email: user.email 
       },
       process.env.JWT_SECRET || 'tuldok-secret-key',
@@ -374,7 +376,7 @@ const loginUser = async (req, res) => {
       message: 'Login successful!',
       data: {
         userId: user.id,
-        walletAddress: user.wallet_address,
+        wallet_address: user.wallet_address,
         email: user.email,
         name: user.name,
         balance_xrp: user.balance_xrp,
@@ -481,7 +483,7 @@ const getUserProfile = async (req, res) => {
     }
 
     const [users] = await db.execute(
-      'SELECT id, wallet_address, email, name, created_at FROM users WHERE wallet_address = ?',
+      'SELECT id, wallet_address, email, name, verified, created_at FROM users WHERE wallet_address = ?',
       [walletAddress]
     );
 
@@ -492,13 +494,17 @@ const getUserProfile = async (req, res) => {
       });
     }
 
+    const user = users[0];
+    console.log('🔍 Backend - Raw user data from database:', user);
+    console.log('🔍 Backend - Verification status:', user.verified, 'Type:', typeof user.verified);
+
     // Always fetch balances live from XRPL
     const balanceInfo = await checkTuldokBalance(walletAddress);
 
     res.status(200).json({
       success: true,
       data: {
-        ...users[0],
+        ...user,
         balance_xrp: balanceInfo.xrpBalance,
         balance_tuldok: balanceInfo.tuldokBalance,
         hasTrustLine: balanceInfo.hasTrustLine
@@ -640,7 +646,7 @@ const refreshUserBalances = async (req, res) => {
       message: 'Balances refreshed successfully!',
       data: {
         userId: user.id,
-        walletAddress: user.wallet_address,
+        wallet_address: user.wallet_address,
         email: user.email,
         name: user.name,
         balance_xrp: balanceInfo.xrpBalance,
@@ -857,6 +863,204 @@ const internalVerifyPayment = async (token, txHash) => {
     }
 };
 
+// Test endpoint to check user verification status
+const testUserVerification = async (req, res) => {
+  try {
+    const { walletAddress } = req.params;
+    
+    if (!validateWalletAddress(walletAddress)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid XRPL wallet address'
+      });
+    }
+
+    console.log(`🔍 Testing verification for wallet: ${walletAddress}`);
+
+    // Direct database query to check verification status
+    const [users] = await db.execute(
+      'SELECT id, wallet_address, email, name, verified, created_at FROM users WHERE wallet_address = ?',
+      [walletAddress]
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found in database'
+      });
+    }
+
+    const user = users[0];
+    
+    res.status(200).json({
+      success: true,
+      message: 'Database verification check',
+      data: {
+        wallet_address: user.wallet_address,
+        email: user.email,
+        name: user.name,
+        verified: user.verified,
+        verified_type: typeof user.verified,
+        verified_boolean: Boolean(user.verified),
+        created_at: user.created_at
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Test verification error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Database check failed',
+      error: error.message
+    });
+  }
+};
+
+// Create Xumm payload for sending tokens
+const createSendTokenPayload = async (req, res) => {
+  try {
+    const { 
+      senderAddress, 
+      recipientAddress, 
+      recipientName, 
+      tokenType, 
+      amount, 
+      memo, 
+      destinationTag, 
+      fee 
+    } = req.body;
+
+    // 1. Validate inputs
+    if (!senderAddress || !recipientAddress || !tokenType || !amount) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Missing required fields: senderAddress, recipientAddress, tokenType, amount' 
+      });
+    }
+
+    // 2. Validate wallet addresses
+    if (!validateWalletAddress(senderAddress) || !validateWalletAddress(recipientAddress)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Invalid wallet address format' 
+      });
+    }
+
+    // 3. Validate amount
+    const numAmount = parseFloat(amount);
+    if (isNaN(numAmount) || numAmount <= 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Invalid amount' 
+      });
+    }
+
+    // 4. Create Xumm Payload based on token type
+    let payload;
+
+    if (tokenType === 'XRP') {
+      // XRP payment
+      const amountInDrops = Math.floor(numAmount * 1000000); // Convert to drops
+      
+      payload = {
+        txjson: {
+          TransactionType: 'Payment',
+          Account: senderAddress,
+          Destination: recipientAddress,
+          Amount: amountInDrops.toString(),
+          Fee: fee || '12'
+        }
+      };
+    } else if (tokenType === 'TULDOK') {
+      // TULDOK token payment
+      const TULDOK_CURRENCY_HEX = '54554C444F4B0000000000000000000000000000';
+      const TULDOK_ISSUER = process.env.TULDOK_ISSUER_ADDRESS;
+
+      if (!TULDOK_ISSUER) {
+        console.error('TULDOK_ISSUER_ADDRESS is not set in .env');
+        return res.status(500).json({ 
+          success: false, 
+          message: 'Server configuration error.' 
+        });
+      }
+
+      payload = {
+        txjson: {
+          TransactionType: 'Payment',
+          Account: senderAddress,
+          Destination: recipientAddress,
+          Amount: {
+            currency: TULDOK_CURRENCY_HEX,
+            value: amount,
+            issuer: TULDOK_ISSUER,
+          },
+          Fee: fee || '12'
+        }
+      };
+    } else {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Invalid token type. Supported: XRP, TULDOK' 
+      });
+    }
+
+    // 5. Add optional fields
+    if (memo) {
+      payload.txjson.Memos = [{
+        Memo: {
+          MemoData: Buffer.from(memo).toString('hex'),
+          MemoType: Buffer.from('text/plain').toString('hex')
+        }
+      }];
+    }
+
+    if (destinationTag) {
+      payload.txjson.DestinationTag = parseInt(destinationTag);
+    }
+
+    // 6. Add custom metadata
+    payload.custom_meta = {
+      identifier: `send_token_${Date.now()}`,
+      blob: {
+        senderAddress,
+        recipientAddress,
+        recipientName,
+        tokenType,
+        amount,
+        memo,
+        destinationTag,
+        timestamp: new Date().toISOString()
+      }
+    };
+
+    console.log('Creating send token Xumm payload:', JSON.stringify(payload, null, 2));
+
+    const createdPayload = await xumm.payload.create(payload);
+
+    console.log('✅ Send token Xumm payload created:', createdPayload);
+    
+    // 7. Return payload details to frontend
+    res.json({
+      success: true,
+      uuid: createdPayload.uuid,
+      refs: createdPayload.refs,
+    });
+
+  } catch (error) {
+    console.error('❌ Error creating send token Xumm payload:', error);
+    // Log the full error if it's from Xumm
+    if (error.response && error.response.data) {
+      console.error('Xumm API Error:', error.response.data);
+      return res.status(500).json({ 
+        success: false, 
+        message: 'Failed to create send token payload.',
+        error: error.response.data
+      });
+    }
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
@@ -871,4 +1075,6 @@ module.exports = {
   createXummPayload,
   getPayloadStatus,
   internalVerifyPayment,
+  testUserVerification,
+  createSendTokenPayload,
 }; 

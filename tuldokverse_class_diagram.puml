@@ -1,0 +1,251 @@
+@startuml Tuldokverse Architecture Class Diagram
+
+!theme plain
+skinparam classAttributeIconSize 0
+skinparam classFontSize 12
+skinparam classFontStyle bold
+skinparam backgroundColor #f8f9fa
+skinparam classBackgroundColor #ffffff
+skinparam classBorderColor #2c3e50
+skinparam packageBackgroundColor #ecf0f1
+skinparam packageBorderColor #34495e
+
+package "Frontend (React)" {
+  class App {
+    +Router: BrowserRouter
+    +Routes: Route[]
+    +render(): JSX.Element
+  }
+
+  class RegistrationPage {
+    +state: {formData, loading, error}
+    +handleSubmit(): void
+    +validateForm(): boolean
+    +render(): JSX.Element
+  }
+
+  class LoginPage {
+    +state: {credentials, loading, error}
+    +handleLogin(): void
+    +handleSubmit(): void
+    +render(): JSX.Element
+  }
+
+  class Dashboard {
+    +state: {user, balances, loading, error}
+    +fetchBalances(): void
+    +handleRefresh(): void
+    +handleLogout(): void
+    +render(): JSX.Element
+  }
+
+  class EmailVerification {
+    +state: {status, error}
+    +verifyEmail(): void
+    +render(): JSX.Element
+  }
+
+  class PaymentVerification {
+    +state: {status, qrUrl, payloadUuid, error}
+    +handleCreatePayload(): void
+    +waitForPayment(): void
+    +render(): JSX.Element
+  }
+}
+
+package "Backend (Node.js/Express)" {
+  class Server {
+    +app: Express
+    +PORT: number
+    +startServer(): void
+    +initializeDatabase(): void
+    +setupMiddleware(): void
+    +setupRoutes(): void
+  }
+
+  class UserController {
+    +registerUser(req, res): void
+    +loginUser(req, res): void
+    +getUserProfile(req, res): void
+    +verifyEmail(req, res): void
+    +resendVerification(req, res): void
+    +refreshUserBalances(req, res): void
+    +verifyPayment(req, res): void
+    +createXummPayload(req, res): void
+    +getPayloadStatus(req, res): void
+    +checkTuldokBalance(walletAddress): object
+    +validateWalletAddress(address): boolean
+    +initializeXRPLClient(): Client
+  }
+
+  class PostController {
+    +createPost(req, res): void
+    +getUserPosts(req, res): void
+    +getAllPosts(req, res): void
+    +burnTuldokToken(walletAddress, content): object
+    +verifyToken(req, res, next): void
+    +initializeXRPLClient(): Client
+  }
+
+  class UserRoutes {
+    +router: Router
+    +setupRoutes(): void
+  }
+
+  class PostRoutes {
+    +router: Router
+    +setupRoutes(): void
+  }
+}
+
+package "Database Layer" {
+  class Database {
+    +pool: mysql2.Pool
+    +execute(query, params): Promise
+    +connect(): Promise
+  }
+
+  class DatabaseInitializer {
+    +initializeDatabase(): Promise
+    +createUsersTable(): Promise
+    +createPostsTable(): Promise
+    +createTransactionsTable(): Promise
+  }
+
+  entity "users" {
+    +id: INT (PK)
+    +wallet_address: VARCHAR(255) (UNIQUE)
+    +email: VARCHAR(255) (UNIQUE)
+    +phone: VARCHAR(50)
+    +name: VARCHAR(255)
+    +balance_xrp: DECIMAL(20,6)
+    +balance_tuldok: DECIMAL(20,6)
+    +verified: BOOLEAN
+    +verified_at: TIMESTAMP
+    +verification_token: VARCHAR(255)
+    +verification_tx_hash: VARCHAR(255)
+    +created_at: TIMESTAMP
+    +updated_at: TIMESTAMP
+  }
+
+  entity "posts" {
+    +id: INT (PK)
+    +user_id: INT (FK)
+    +wallet_address: VARCHAR(255)
+    +content: TEXT
+    +transaction_hash: VARCHAR(255)
+    +ledger_index: BIGINT
+    +created_at: TIMESTAMP
+  }
+
+  entity "transactions" {
+    +id: INT (PK)
+    +user_id: INT (FK)
+    +wallet_address: VARCHAR(255)
+    +transaction_hash: VARCHAR(255) (UNIQUE)
+    +transaction_type: ENUM
+    +amount: DECIMAL(20,6)
+    +ledger_index: BIGINT
+    +status: ENUM
+    +memo: TEXT
+    +created_at: TIMESTAMP
+  }
+}
+
+package "External Services" {
+  class XRPLClient {
+    +client: xrpl.Client
+    +connect(): Promise
+    +request(command, params): Promise
+    +disconnect(): void
+  }
+
+  class XummSDK {
+    +sdk: XummSdk
+    +createPayload(payload): Promise
+    +getPayload(uuid): Promise
+    +getPayloadStatus(uuid): Promise
+  }
+
+  class EmailService {
+    +transporter: nodemailer.Transporter
+    +sendVerificationEmail(email, token): Promise
+    +sendPaymentEmail(email, link): Promise
+  }
+
+  class JWTService {
+    +sign(payload, secret): string
+    +verify(token, secret): object
+    +decode(token): object
+  }
+}
+
+package "Utilities" {
+  class CryptoUtils {
+    +generateToken(): string
+    +hashPassword(password): string
+    +comparePassword(password, hash): boolean
+  }
+
+  class ValidationUtils {
+    +validateEmail(email): boolean
+    +validatePhone(phone): boolean
+    +validateWalletAddress(address): boolean
+  }
+}
+
+' Frontend Relationships
+App ||--o{ RegistrationPage : routes to
+App ||--o{ LoginPage : routes to
+App ||--o{ Dashboard : routes to
+App ||--o{ EmailVerification : routes to
+App ||--o{ PaymentVerification : routes to
+
+' Backend Relationships
+Server ||--o{ UserRoutes : uses
+Server ||--o{ PostRoutes : uses
+Server ||--o{ Database : initializes
+Server ||--o{ DatabaseInitializer : uses
+
+UserRoutes ||--o{ UserController : uses
+PostRoutes ||--o{ PostController : uses
+
+' Database Relationships
+Database ||--o{ DatabaseInitializer : used by
+DatabaseInitializer ||--o{ users : creates
+DatabaseInitializer ||--o{ posts : creates
+DatabaseInitializer ||--o{ transactions : creates
+
+users ||--o{ posts : has many
+users ||--o{ transactions : has many
+
+' External Service Relationships
+UserController ||--o{ XRPLClient : uses
+UserController ||--o{ XummSDK : uses
+UserController ||--o{ EmailService : uses
+UserController ||--o{ JWTService : uses
+UserController ||--o{ CryptoUtils : uses
+UserController ||--o{ ValidationUtils : uses
+
+PostController ||--o{ XRPLClient : uses
+PostController ||--o{ JWTService : uses
+
+' Frontend-Backend Communication
+RegistrationPage ..> UserController : HTTP POST /api/register
+LoginPage ..> UserController : HTTP POST /api/login
+Dashboard ..> UserController : HTTP GET /api/profile
+Dashboard ..> PostController : HTTP GET /api/posts
+EmailVerification ..> UserController : HTTP GET /api/verify-email
+PaymentVerification ..> UserController : HTTP POST /api/create-xumm-payload
+PaymentVerification ..> UserController : HTTP GET /api/payload-status
+
+' Database Access
+UserController ..> Database : SQL queries
+PostController ..> Database : SQL queries
+
+' External API Calls
+XRPLClient ..> "XRPL Network" : WebSocket/HTTP
+XummSDK ..> "Xumm API" : HTTP
+EmailService ..> "SMTP Server" : SMTP
+
+@enduml 

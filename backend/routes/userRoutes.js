@@ -10,7 +10,9 @@ const {
   refreshUserBalances,
   verifyPayment,
   createXummPayload,
-  getPayloadStatus
+  getPayloadStatus,
+  testUserVerification,
+  createSendTokenPayload
 } = require('../controllers/userController');
 
 // Health check - GET /api/health
@@ -40,7 +42,13 @@ router.post('/verify-payment', verifyPayment);
 // Create Xumm payload for TULDOK payment - POST /api/create-xumm-payload
 router.post('/create-xumm-payload', createXummPayload);
 
+// Create Xumm payload for sending tokens - POST /api/create-send-token-payload
+router.post('/create-send-token-payload', createSendTokenPayload);
+
 // Get Xumm payload status - GET /api/payload-status/:uuid
 router.get('/payload-status/:uuid', getPayloadStatus);
+
+// Test user verification status - GET /api/test-verification/:walletAddress
+router.get('/test-verification/:walletAddress', testUserVerification);
 
 module.exports = router; 
