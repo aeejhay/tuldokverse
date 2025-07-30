@@ -124,10 +124,10 @@ const ProfilePage = () => {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('tuldokUser');
-    window.location.href = '/';
-  };
+  // const handleLogout = () => {
+  //   localStorage.removeItem('tuldokUser');
+  //   window.location.href = '/';
+  // };
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);

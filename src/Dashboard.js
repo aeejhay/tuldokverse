@@ -26,11 +26,11 @@ const migrateUserData = (userData) => {
 };
 
 // Helper function to check if user is verified (handles both boolean and numeric values)
-const isUserVerified = (user) => {
-  if (!user) return false;
-  // Handle both boolean true/false and numeric 1/0 from database
-  return Boolean(user.verified);
-};
+// const isUserVerified = (user) => {
+//   if (!user) return false;
+//   // Handle both boolean true/false and numeric 1/0 from database
+//   return Boolean(user.verified);
+// };
 
 const Dashboard = () => {
   const [user, setUser] = useState(null);
@@ -38,7 +38,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
-  const [hasTrustLine, setHasTrustLine] = useState(false);
+  // const [hasTrustLine, setHasTrustLine] = useState(false);
 
   useEffect(() => {
     const userData = localStorage.getItem('tuldokUser');
@@ -79,7 +79,7 @@ const Dashboard = () => {
           tuldok: parseFloat(data.data.balance_tuldok || 0),
         });
         setUser(data.data);
-        setHasTrustLine(data.data.hasTrustLine || false);
+        // setHasTrustLine(data.data.hasTrustLine || false);
         localStorage.setItem('tuldokUser', JSON.stringify(data.data));
       } else {
         throw new Error(data.message || 'Failed to fetch balances');
@@ -104,7 +104,7 @@ const Dashboard = () => {
             tuldok: parseFloat(data.data.balance_tuldok || 0),
           });
           setUser(data.data);
-          setHasTrustLine(data.data.hasTrustLine || false);
+          // setHasTrustLine(data.data.hasTrustLine || false);
           localStorage.setItem('tuldokUser', JSON.stringify(data.data));
           setError('');
         } else {
