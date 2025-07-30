@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './App.css';
-import SimpleLogo from './components/SimpleLogo';
+import Logo from './components/Logo';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
@@ -87,7 +87,7 @@ const LoginPage = () => {
   return (
     <>
       <div style={{ display: 'flex', justifyContent: 'center', marginTop: 40, marginBottom: 16 }}>
-        <SimpleLogo size={80} />
+        <Logo size={80} />
       </div>
       <div className="login-container">
         <h2>Login to TULDOK Social</h2>
