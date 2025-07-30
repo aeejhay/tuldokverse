@@ -64,6 +64,24 @@ console.log("FRONTEND_URL:", process.env.FRONTEND_URL || "http://localhost:3000"
 app.use('/api', userRoutes);
 app.use('/api', postRoutes);
 
+// Debug endpoint to test route registration
+app.get('/api/debug/routes', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Routes are registered',
+    availableRoutes: [
+      'GET /api/health',
+      'POST /api/register',
+      'POST /api/login',
+      'GET /api/profile/:walletAddress',
+      'POST /api/refresh-balances/:walletAddress',
+      'GET /api/verify-email',
+      'POST /api/resend-verification'
+    ],
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Health check endpoint
 app.get('/', (req, res) => {
   res.json({
@@ -102,6 +120,8 @@ app.get('/api/cors-test', (req, res) => {
 
 // Initialize database and start server
 const startServer = async () => {
+  const PORT = process.env.PORT || 5000;
+  
   try {
     // Test DB connection
     await db.execute('SELECT 1');
@@ -111,7 +131,6 @@ const startServer = async () => {
     await initializeDatabase();
     console.log('✅ Database initialization completed!');
 
-    const PORT = process.env.PORT || 5000;
     app.listen(PORT, () => {
       console.log(`🚀 TULDOK Social Backend Server started on port ${PORT}`);
       console.log(`📡 API available at: http://localhost:${PORT}`);
@@ -125,11 +144,11 @@ const startServer = async () => {
     console.log('⚠️ Starting server without database initialization...');
     
     // Start server even if database fails
-    const PORT = process.env.PORT || 5000;
     app.listen(PORT, () => {
       console.log(`🚀 TULDOK Social Backend Server started on port ${PORT} (Database not available)`);
       console.log(`📡 API available at: http://localhost:${PORT}`);
       console.log(`🔗 Health check: http://localhost:${PORT}/`);
+      console.log(`⚠️ Some features may not work without database connection`);
     });
   }
 };
