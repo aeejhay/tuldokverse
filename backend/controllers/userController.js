@@ -15,7 +15,15 @@ let client = null;
 const initializeXRPLClient = async () => {
   try {
     if (!client) {
-      client = new xrpl.Client(process.env.XRPL_NODE_URL || 'wss://xrplcluster.com');
+      const xrplUrl = process.env.XRPL_NODE_URL || 'wss://xrplcluster.com';
+      console.log('🔗 Connecting to XRPL node:', xrplUrl);
+      
+      // Validate URL format
+      if (!xrplUrl.startsWith('wss://') && !xrplUrl.startsWith('ws://')) {
+        throw new Error(`Invalid XRPL URL format: ${xrplUrl}. Must start with wss:// or ws://`);
+      }
+      
+      client = new xrpl.Client(xrplUrl);
       await client.connect();
       console.log('🔗 XRPL Client Connected!');
     }
@@ -196,15 +204,29 @@ const registerUser = async (req, res) => {
       });
     }
 
-    // Check XRPL wallet balance
+    // Check XRPL wallet balance (with fallback)
     console.log('💰 Checking wallet balance...');
-    const balanceInfo = await checkTuldokBalance(walletAddress);
-    
-    if (!balanceInfo.isValid) {
-      return res.status(400).json({
-        success: false,
-        message: 'Insufficient wallet balance for registration'
-      });
+    let balanceInfo;
+    try {
+      balanceInfo = await checkTuldokBalance(walletAddress);
+      
+      if (!balanceInfo.isValid) {
+        return res.status(400).json({
+          success: false,
+          message: 'Insufficient wallet balance for registration'
+        });
+      }
+    } catch (error) {
+      console.error('❌ Balance Check Error:', error);
+      console.log('⚠️ Using fallback balance check for registration');
+      
+      // Fallback: Allow registration with default values
+      balanceInfo = {
+        xrpBalance: 0,
+        tuldokBalance: 0,
+        hasTrustLine: false,
+        isValid: true
+      };
     }
 
     // Generate email verification token

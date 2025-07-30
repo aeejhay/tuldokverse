@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import './App.css';
+import Logo from './components/Logo';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
@@ -131,7 +132,7 @@ const RegistrationPage = () => {
   return (
     <>
       <div style={{ display: 'flex', justifyContent: 'center', marginTop: 40, marginBottom: 16 }}>
-        <img src="/white_logo_tuldok.png" alt="Logo" style={{ width: 80, height: 80 }} />
+        <Logo size={80} />
       </div>
       <div className="register-container">
         <h2>TULDOK Social Registration</h2>

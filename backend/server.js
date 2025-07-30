@@ -61,8 +61,11 @@ console.log("XRPL_NODE_URL:", process.env.XRPL_NODE_URL || "Using default");
 console.log("FRONTEND_URL:", process.env.FRONTEND_URL || "http://localhost:3000");
 
 // API Routes - Register immediately
+console.log('🔧 Registering API routes...');
 app.use('/api', userRoutes);
+console.log('✅ User routes registered');
 app.use('/api', postRoutes);
+console.log('✅ Post routes registered');
 
 // Debug endpoint to test route registration
 app.get('/api/debug/routes', (req, res) => {
@@ -78,6 +81,54 @@ app.get('/api/debug/routes', (req, res) => {
       'GET /api/verify-email',
       'POST /api/resend-verification'
     ],
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Simple test endpoint
+app.get('/api/test', (req, res) => {
+  res.json({
+    success: true,
+    message: 'API is working!',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Test login endpoint (simple version)
+app.post('/api/test-login', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Login endpoint is reachable',
+    body: req.body,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// List all registered routes
+app.get('/api/routes', (req, res) => {
+  const routes = [];
+  app._router.stack.forEach(middleware => {
+    if (middleware.route) {
+      routes.push({
+        path: middleware.route.path,
+        methods: Object.keys(middleware.route.methods)
+      });
+    } else if (middleware.name === 'router') {
+      middleware.handle.stack.forEach(handler => {
+        if (handler.route) {
+          routes.push({
+            path: handler.route.path,
+            methods: Object.keys(handler.route.methods)
+          });
+        }
+      });
+    }
+  });
+  
+  res.json({
+    success: true,
+    message: 'All registered routes',
+    routes: routes,
     timestamp: new Date().toISOString()
   });
 });
@@ -122,6 +173,15 @@ app.get('/api/cors-test', (req, res) => {
 const startServer = async () => {
   const PORT = process.env.PORT || 5000;
   
+  // Start server immediately, then try database
+  app.listen(PORT, () => {
+    console.log(`🚀 TULDOK Social Backend Server started on port ${PORT}`);
+    console.log(`📡 API available at: http://localhost:${PORT}`);
+    console.log(`🔗 Health check: http://localhost:${PORT}/`);
+    console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
+  });
+  
+  // Try database connection in background
   try {
     // Test DB connection
     await db.execute('SELECT 1');
@@ -131,25 +191,9 @@ const startServer = async () => {
     await initializeDatabase();
     console.log('✅ Database initialization completed!');
 
-    app.listen(PORT, () => {
-      console.log(`🚀 TULDOK Social Backend Server started on port ${PORT}`);
-      console.log(`📡 API available at: http://localhost:${PORT}`);
-      console.log(`🔗 Health check: http://localhost:${PORT}/`);
-      console.log(`🏥 API Health: http://localhost:${PORT}/api/health`);
-      console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
-    });
-
   } catch (error) {
     console.error('❌ Database initialization error:', error);
-    console.log('⚠️ Starting server without database initialization...');
-    
-    // Start server even if database fails
-    app.listen(PORT, () => {
-      console.log(`🚀 TULDOK Social Backend Server started on port ${PORT} (Database not available)`);
-      console.log(`📡 API available at: http://localhost:${PORT}`);
-      console.log(`🔗 Health check: http://localhost:${PORT}/`);
-      console.log(`⚠️ Some features may not work without database connection`);
-    });
+    console.log('⚠️ Server running without database connection');
   }
 };
 

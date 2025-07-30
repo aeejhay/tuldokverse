@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './App.css';
+import Logo from './components/Logo';
+import ImageTest from './components/ImageTest';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
@@ -85,8 +87,9 @@ const LoginPage = () => {
 
   return (
     <>
+      <ImageTest />
       <div style={{ display: 'flex', justifyContent: 'center', marginTop: 40, marginBottom: 16 }}>
-        <img src="/white_logo_tuldok.png" alt="Logo" style={{ width: 80, height: 80 }} />
+        <Logo size={80} />
       </div>
       <div className="login-container">
         <h2>Login to TULDOK Social</h2>
