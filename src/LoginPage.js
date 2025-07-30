@@ -86,6 +86,7 @@ const LoginPage = () => {
 
   return (
     <>
+      {/* Clean login page without ImageTest */}
       <div style={{ display: 'flex', justifyContent: 'center', marginTop: 40, marginBottom: 16 }}>
         <Logo size={80} />
       </div>
