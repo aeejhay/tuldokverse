@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import Layout from './components/Layout';
-import QRCode from 'qrcode';
 import './App.css';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
@@ -67,7 +66,6 @@ const SendTokenPage = () => {
   const [formErrors, setFormErrors] = useState({});
   const [transactionData, setTransactionData] = useState(null);
   const [qrCodeData, setQrCodeData] = useState(null);
-  const [isGeneratingQR, setIsGeneratingQR] = useState(false);
 
   useEffect(() => {
     const userData = localStorage.getItem('tuldokUser');
@@ -220,7 +218,6 @@ const SendTokenPage = () => {
   };
 
   const generateQRCode = async () => {
-    setIsGeneratingQR(true);
     try {
       // Submit transaction data to backend to create Xaman payload
       const res = await fetch(`${API_URL}/create-send-token-payload`, {
@@ -263,8 +260,6 @@ const SendTokenPage = () => {
     } catch (err) {
       console.error('QR Generation Error:', err);
       setError('Failed to generate QR code: ' + err.message);
-    } finally {
-      setIsGeneratingQR(false);
     }
   };
 
