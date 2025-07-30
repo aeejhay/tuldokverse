@@ -1,6 +1,6 @@
 import React from 'react';
 import './Sidebar.css';
-import Logo from './Logo';
+import SimpleLogo from './SimpleLogo';
 
 const Sidebar = ({ currentPage, onLogout }) => {
   // Menu configuration - easily add new pages here
@@ -65,7 +65,7 @@ const Sidebar = ({ currentPage, onLogout }) => {
 
   return (
     <aside className="sidebar">
-      <Logo className="sidebar-logo" size={60} />
+      <SimpleLogo className="sidebar-logo" size={60} />
       
       <nav className="sidebar-nav">
         {menuItems.map((item) => (

@@ -1,21 +1,29 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const Logo = ({ className = '', style = {}, size = 80 }) => {
   const [imageError, setImageError] = useState(false);
-  const [currentSrc, setCurrentSrc] = useState('/white_logo_tuldok.png');
+  const [currentSrc, setCurrentSrc] = useState('/logo.png');
+  const [attempts, setAttempts] = useState(0);
 
   const handleImageError = () => {
-    console.error('Logo failed to load:', currentSrc);
+    console.error('Logo failed to load:', currentSrc, 'Attempt:', attempts + 1);
+    setAttempts(prev => prev + 1);
     
-    if (currentSrc === '/white_logo_tuldok.png') {
+    if (attempts === 0) {
+      // Try original filename
+      setCurrentSrc('/white_logo_tuldok.png');
+    } else if (attempts === 1) {
       // Try with PUBLIC_URL
-      setCurrentSrc(`${process.env.PUBLIC_URL}/white_logo_tuldok.png`);
-    } else if (currentSrc.includes('PUBLIC_URL')) {
+      setCurrentSrc(`${process.env.PUBLIC_URL}/logo.png`);
+    } else if (attempts === 2) {
       // Try SVG version
       setCurrentSrc('/tuldok-logo.svg');
-    } else if (currentSrc === '/tuldok-logo.svg') {
+    } else if (attempts === 3) {
       // Try relative path
-      setCurrentSrc('./white_logo_tuldok.png');
+      setCurrentSrc('./logo.png');
+    } else if (attempts === 4) {
+      // Try absolute path with domain
+      setCurrentSrc(`${window.location.origin}/logo.png`);
     } else {
       // Fallback to text logo
       setImageError(true);
@@ -25,6 +33,13 @@ const Logo = ({ className = '', style = {}, size = 80 }) => {
   const handleImageLoad = () => {
     console.log('Logo loaded successfully:', currentSrc);
   };
+
+  // Reset attempts when component mounts
+  useEffect(() => {
+    setAttempts(0);
+    setCurrentSrc('/logo.png');
+    setImageError(false);
+  }, []);
 
   if (imageError) {
     // Text-based fallback logo with better styling
