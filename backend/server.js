@@ -12,16 +12,31 @@ const app = express();
 
 // CORS configuration for frontend integration
 const corsOptions = {
-  origin: [
-    process.env.FRONTEND_URL || 'http://localhost:3000',
-    'https://tuldokverse.vercel.app',
-    'https://tuldokverse.vercel.app/',
-    'http://localhost:3000'
-  ],
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      'https://tuldokverse.vercel.app',
+      'https://tuldokverse.vercel.app/',
+      'http://localhost:3000',
+      process.env.FRONTEND_URL
+    ].filter(Boolean);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('🚫 CORS blocked origin:', origin);
+      // TEMPORARY: Allow all origins for debugging
+      console.log('⚠️ Temporarily allowing blocked origin for debugging');
+      callback(null, true);
+    }
+  },
   credentials: true,
   optionsSuccessStatus: 200,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Origin', 'Accept'],
+  preflightContinue: false
 };
 
 // Middleware
@@ -31,7 +46,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Request logging middleware
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.path} - Origin: ${req.headers.origin || 'No origin'}`);
   next();
 });
 
@@ -55,6 +70,10 @@ app.get('/', (req, res) => {
     message: 'TULDOK Social Backend Running! 🚀',
     version: '1.0.0',
     timestamp: new Date().toISOString(),
+    cors: {
+      frontendUrl: process.env.FRONTEND_URL,
+      allowedOrigins: ['https://tuldokverse.vercel.app', 'http://localhost:3000']
+    },
     endpoints: {
       health: 'GET /api/health',
       auth: {
@@ -68,6 +87,16 @@ app.get('/', (req, res) => {
         allPosts: 'GET /api/posts'
       }
     }
+  });
+});
+
+// CORS test endpoint
+app.get('/api/cors-test', (req, res) => {
+  res.json({
+    success: true,
+    message: 'CORS is working!',
+    origin: req.headers.origin,
+    timestamp: new Date().toISOString()
   });
 });
 
