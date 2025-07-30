@@ -86,7 +86,7 @@ const LoginPage = () => {
   return (
     <>
       <div style={{ display: 'flex', justifyContent: 'center', marginTop: 40, marginBottom: 16 }}>
-        <img src="/white_logo_tuldok.png" alt="Logo" style={{ width: 80, height: 80 }} />
+        <img src="public/white_logo_tuldok.png" alt="Logo" style={{ width: 80, height: 80 }} />
       </div>
       <div className="login-container">
         <h2>Login to TULDOK Social</h2>
