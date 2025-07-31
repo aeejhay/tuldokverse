@@ -3,32 +3,6 @@
   "framework": "create-react-app",
   "buildCommand": "npm run build",
   "outputDirectory": "build",
-  "routes": [
-    {
-      "src": "/white_logo_tuldok.png",
-      "dest": "/white_logo_tuldok.png"
-    },
-    {
-      "src": "/tuldok-logo.svg",
-      "dest": "/tuldok-logo.svg"
-    },
-    {
-      "src": "/manifest.json",
-      "dest": "/manifest.json"
-    },
-    {
-      "src": "/robots.txt",
-      "dest": "/robots.txt"
-    },
-    {
-      "src": "/static/(.*)",
-      "dest": "/static/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
-    }
-  ],
   "headers": [
     {
       "source": "/white_logo_tuldok.png",
