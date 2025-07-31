@@ -1,38 +1,16 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "build"
-      }
-    }
-  ],
+  "framework": "create-react-app",
+  "buildCommand": "npm run build",
+  "outputDirectory": "build",
   "routes": [
     {
       "src": "/white_logo_tuldok.png",
       "dest": "/white_logo_tuldok.png"
     },
     {
-      "src": "/logo.png",
-      "dest": "/logo.png"
-    },
-    {
       "src": "/tuldok-logo.svg",
       "dest": "/tuldok-logo.svg"
-    },
-    {
-      "src": "/favicon.ico",
-      "dest": "/favicon.ico"
-    },
-    {
-      "src": "/logo192.png",
-      "dest": "/logo192.png"
-    },
-    {
-      "src": "/logo512.png",
-      "dest": "/logo512.png"
     },
     {
       "src": "/manifest.json",
@@ -70,5 +48,8 @@
         }
       ]
     }
-  ]
+  ],
+  "env": {
+    "CI": "false"
+  }
 } 
