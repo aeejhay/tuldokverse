@@ -6,7 +6,17 @@ const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 const { XummSdk } = require('xumm-sdk');
 
-const xumm = new XummSdk(process.env.XUMM_API_KEY, process.env.XUMM_API_SECRET);
+// Initialize XUMM SDK lazily to ensure environment variables are loaded
+let xumm = null;
+const getXummSdk = () => {
+  if (!xumm) {
+    if (!process.env.XUMM_API_KEY || !process.env.XUMM_API_SECRET) {
+      throw new Error('XUMM_API_KEY and XUMM_API_SECRET must be set in environment variables');
+    }
+    xumm = new XummSdk(process.env.XUMM_API_KEY, process.env.XUMM_API_SECRET);
+  }
+  return xumm;
+};
 
 // XRPL Client instance
 let client = null;
@@ -779,7 +789,7 @@ const createXummPayload = async (req, res) => {
 
     console.log('Creating Xumm payload:', JSON.stringify(payload, null, 2));
 
-    const createdPayload = await xumm.payload.create(payload);
+    const createdPayload = await getXummSdk().payload.create(payload);
 
     console.log('✅ Xumm payload created:', createdPayload);
     
@@ -812,7 +822,7 @@ const getPayloadStatus = async (req, res) => {
   try {
     console.log(`👂 Subscribing to payload ${uuid}`);
 
-    const subscription = await xumm.payload.subscribe(uuid, event => {
+    const subscription = await getXummSdk().payload.subscribe(uuid, event => {
       console.log(`🔔 Payload event for ${uuid}:`, event.data);
 
       if (event.data.signed === true) {
@@ -1057,7 +1067,7 @@ const createSendTokenPayload = async (req, res) => {
 
     console.log('Creating send token Xumm payload:', JSON.stringify(payload, null, 2));
 
-    const createdPayload = await xumm.payload.create(payload);
+    const createdPayload = await getXummSdk().payload.create(payload);
 
     console.log('✅ Send token Xumm payload created:', createdPayload);
     
