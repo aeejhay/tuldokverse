@@ -31,9 +31,14 @@ const TuldokversePage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [transactions, setTransactions] = useState([]);
+  const [transactionsLoading, setTransactionsLoading] = useState(false);
 
   useEffect(() => {
+    console.log('🚀 TuldokversePage component mounted');
     const userData = localStorage.getItem('tuldokUser');
+    console.log('👤 User data from localStorage:', userData ? 'Found' : 'Not found');
+    
     if (userData) {
       const user = migrateUserData(userData);
       if (!user || !user.wallet_address) {
@@ -41,8 +46,10 @@ const TuldokversePage = () => {
         setLoading(false);
         return;
       }
+      console.log('✅ User data valid, fetching data...');
       setUser(user);
       fetchBalances(user.wallet_address);
+      fetchTuldokTransactions();
     } else {
       setError('No user data found. Please login first.');
       setLoading(false);
@@ -97,6 +104,35 @@ const TuldokversePage = () => {
     }
   };
 
+  const fetchTuldokTransactions = async () => {
+    try {
+      console.log('🔄 Fetching TULDOK transactions...');
+      console.log('🌐 API URL:', `${API_URL}/tuldok-transactions?limit=20`);
+      setTransactionsLoading(true);
+      
+      const res = await fetch(`${API_URL}/tuldok-transactions?limit=20`);
+      console.log('📡 API Response status:', res.status);
+      console.log('📡 API Response headers:', res.headers);
+      
+      const data = await res.json();
+      console.log('📊 API Response data:', data);
+      
+      if (res.ok && data.success) {
+        console.log('✅ Transactions fetched successfully:', data.data.transactions.length, 'transactions');
+        console.log('📋 First transaction:', data.data.transactions[0]);
+        setTransactions(data.data.transactions);
+      } else {
+        console.error('❌ Failed to fetch transactions:', data.message);
+        console.error('❌ Response data:', data);
+      }
+    } catch (err) {
+      console.error('❌ Error fetching transactions:', err);
+      console.error('❌ Error details:', err.message);
+    } finally {
+      setTransactionsLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <Layout currentPage="tuldokverse">
@@ -141,6 +177,8 @@ const TuldokversePage = () => {
 
       {/* Main content */}
       <main className="main-feed">
+        
+
         <div className="welcome-card">
           <div className="welcome-header">
             <div className="admin-avatar">🌍</div>
@@ -227,6 +265,130 @@ const TuldokversePage = () => {
                   </div>
                 </div>
               </div>
+
+              {/* TULDOK Transactions Section */}
+        <div className="transactions-card">
+          <div className="transactions-header">
+            <div className="transactions-title">
+              <h3>📊 TULDOK Transaction History</h3>
+              <p>Recent transactions from the TULDOK issuer wallet for transparency</p>
+            </div>
+            <button 
+              className="refresh-btn" 
+              onClick={fetchTuldokTransactions} 
+              disabled={transactionsLoading}
+              title="Refresh Transactions"
+            >
+              {transactionsLoading ? '🔄' : '🔄'}
+            </button>
+          </div>
+
+          {transactionsLoading ? (
+            <div className="loading-transactions">
+              <div className="spinner"></div>
+              <p>Loading transactions...</p>
+            </div>
+          ) : (() => {
+            console.log('🔍 Current transactions state:', transactions);
+            console.log('🔍 Transactions length:', transactions.length);
+            return transactions.length > 0 ? (
+            <div className="transactions-list">
+              {transactions.map((tx, index) => (
+                <div key={tx.hash} className={`transaction-item ${tx.successful ? 'successful' : 'failed'}`}>
+                  <div className="transaction-header">
+                    <div className="transaction-type">
+                      <span className="type-icon">
+                        {tx.transaction_type === 'Payment' ? '💸' : '🔗'}
+                      </span>
+                      <span className="type-text">{tx.transaction_type}</span>
+                    </div>
+                    <div className="transaction-status">
+                      {tx.successful ? (
+                        <span className="status-success">✅ Success</span>
+                      ) : (
+                        <span className="status-failed">❌ Failed</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="transaction-details">
+                    {tx.amount && (
+                      <div className="transaction-amount">
+                        <span className="amount-value">
+                          {parseFloat(tx.amount).toLocaleString(undefined, { 
+                            maximumFractionDigits: tx.currency === 'XRP' ? 6 : 2 
+                          })}
+                        </span>
+                        <span className="amount-currency">{tx.currency}</span>
+                      </div>
+                    )}
+
+                    <div className="transaction-addresses">
+                      {tx.source && (
+                        <div className="address-item">
+                          <span className="address-label">From:</span>
+                          <a 
+                            href={tx.account_url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="address-link"
+                          >
+                            {tx.source.slice(0, 8)}...{tx.source.slice(-8)}
+                          </a>
+                        </div>
+                      )}
+                      {tx.destination && (
+                        <div className="address-item">
+                          <span className="address-label">To:</span>
+                          <a 
+                            href={`https://livenet.xrpl.org/accounts/${tx.destination}`}
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="address-link"
+                          >
+                            {tx.destination.slice(0, 8)}...{tx.destination.slice(-8)}
+                          </a>
+                        </div>
+                      )}
+                    </div>
+
+                    {tx.memo && (
+                      <div className="transaction-memo">
+                        <span className="memo-label">Memo:</span>
+                        <span className="memo-text">{tx.memo}</span>
+                      </div>
+                    )}
+
+                    <div className="transaction-meta">
+                      <div className="transaction-date">
+                        {new Date(tx.date).toLocaleString()}
+                      </div>
+                      <div className="transaction-fee">
+                        Fee: {tx.fee} XRP
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="transaction-actions">
+                    <a 
+                      href={tx.ledger_url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="view-transaction-btn"
+                    >
+                      🔍 View on XRPL
+                    </a>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="no-transactions">
+              <p>No transactions found</p>
+            </div>
+          );
+        })()}
+        </div>
               
               <div className="coming-soon-message">
                 <h4>⏰ Coming Soon</h4>

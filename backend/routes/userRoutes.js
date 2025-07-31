@@ -12,7 +12,8 @@ const {
   createXummPayload,
   getPayloadStatus,
   testUserVerification,
-  createSendTokenPayload
+  createSendTokenPayload,
+  getTuldokTransactions
 } = require('../controllers/userController');
 
 // Health check - GET /api/health
@@ -50,5 +51,8 @@ router.get('/payload-status/:uuid', getPayloadStatus);
 
 // Test user verification status - GET /api/test-verification/:walletAddress
 router.get('/test-verification/:walletAddress', testUserVerification);
+
+// Get TULDOK transactions - GET /api/tuldok-transactions
+router.get('/tuldok-transactions', getTuldokTransactions);
 
 module.exports = router; 

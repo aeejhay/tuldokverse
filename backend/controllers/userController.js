@@ -1093,20 +1093,193 @@ const createSendTokenPayload = async (req, res) => {
   }
 };
 
+// Get TULDOK transactions from specified wallet
+const getTuldokTransactions = async (req, res) => {
+  try {
+    const walletAddress = 'r9qGMJMreNBYdEqJ7mNrUjyCj44fDUEe1G'; // TULDOK issuer wallet
+    const limit = parseInt(req.query.limit) || 20;
+
+    console.log(`📊 Fetching ${limit} TULDOK transactions from wallet: ${walletAddress}`);
+
+    const xrplClient = await initializeXRPLClient();
+
+    // Get account transactions
+    const accountTxResponse = await xrplClient.request({
+      command: 'account_tx',
+      account: walletAddress,
+      limit: limit,
+      ledger_index_min: -1,
+      ledger_index_max: -1
+    });
+
+    if (!accountTxResponse.result.transactions) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          transactions: [],
+          total: 0,
+          wallet: walletAddress
+        }
+      });
+    }
+
+    // Filter and format TULDOK-related transactions with proper error handling
+    const tuldokTransactions = accountTxResponse.result.transactions
+      .filter(tx => {
+        try {
+          // Check if transaction has the expected structure
+          if (!tx || !tx.tx_json) {
+            console.log('⚠️ Skipping transaction without tx_json data');
+            return false;
+          }
+          
+          const txData = tx.tx_json;
+          
+          // Check if TransactionType exists
+          if (!txData.TransactionType) {
+            console.log('⚠️ Skipping transaction without TransactionType');
+            return false;
+          }
+
+          // Include Payment transactions (TULDOK transfers)
+          if (txData.TransactionType === 'Payment') {
+            return true;
+          }
+          // Include TrustSet transactions (trust line operations)
+          if (txData.TransactionType === 'TrustSet') {
+            return true;
+          }
+          // Include OfferCreate transactions (DEX operations)
+          if (txData.TransactionType === 'OfferCreate') {
+            return true;
+          }
+          // Include other relevant transaction types
+          return false;
+        } catch (error) {
+          console.log('⚠️ Error filtering transaction:', error.message);
+          return false;
+        }
+      })
+      .map(tx => {
+        try {
+          const txData = tx.tx_json;
+          const meta = tx.meta;
+          
+          // Determine transaction type and details
+          let transactionType = txData.TransactionType || 'Unknown';
+          let amount = null;
+          let currency = null;
+          let issuer = null;
+          let memo = null;
+          let destination = null;
+          let source = null;
+
+          // Extract memo if present
+          if (txData.Memos && txData.Memos.length > 0) {
+            try {
+              const memoData = txData.Memos[0].Memo;
+              if (memoData && memoData.MemoData) {
+                memo = Buffer.from(memoData.MemoData, 'hex').toString('utf8');
+              }
+            } catch (error) {
+              console.log('Could not decode memo:', error.message);
+            }
+          }
+
+          // Extract payment details
+          if (txData.TransactionType === 'Payment') {
+            destination = txData.Destination;
+            source = txData.Account;
+            
+            if (txData.Amount && typeof txData.Amount === 'object') {
+              // Token payment
+              amount = txData.Amount.value;
+              currency = txData.Amount.currency;
+              issuer = txData.Amount.issuer;
+            } else if (txData.Amount) {
+              // XRP payment
+              amount = xrpl.dropsToXrp(txData.Amount);
+              currency = 'XRP';
+            }
+          }
+
+          // Extract offer details
+          if (txData.TransactionType === 'OfferCreate') {
+            source = txData.Account;
+            
+            if (txData.TakerGets && typeof txData.TakerGets === 'object') {
+              // Token offer
+              amount = txData.TakerGets.value;
+              currency = txData.TakerGets.currency;
+              issuer = txData.TakerGets.issuer;
+            } else if (txData.TakerGets) {
+              // XRP offer
+              amount = xrpl.dropsToXrp(txData.TakerGets);
+              currency = 'XRP';
+            }
+          }
+
+          // Determine if transaction was successful
+          const isSuccessful = meta && meta.TransactionResult === 'tesSUCCESS';
+
+          return {
+            hash: tx.hash || 'Unknown',
+            ledger_index: tx.ledger_index || 0,
+            date: tx.close_time_iso || new Date().toISOString(),
+            transaction_type: transactionType,
+            amount: amount,
+            currency: currency,
+            issuer: issuer,
+            destination: destination,
+            source: source,
+            memo: memo,
+            fee: txData.Fee ? xrpl.dropsToXrp(txData.Fee) : 0,
+            successful: isSuccessful,
+            ledger_url: tx.hash ? `https://livenet.xrpl.org/transactions/${tx.hash}` : '#',
+            account_url: txData.Account ? `https://livenet.xrpl.org/accounts/${txData.Account}` : '#'
+          };
+        } catch (error) {
+          console.log('⚠️ Error processing transaction:', error.message);
+          return null;
+        }
+      })
+      .filter(tx => tx !== null) // Remove any null transactions from processing errors
+      .sort((a, b) => new Date(b.date) - new Date(a.date)); // Sort by date descending
+
+    console.log(`📊 Found ${tuldokTransactions.length} TULDOK transactions`);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        transactions: tuldokTransactions,
+        total: tuldokTransactions.length,
+        wallet: walletAddress,
+        limit: limit
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Get TULDOK Transactions Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch TULDOK transactions',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
   getUserProfile,
   healthCheck,
-  checkTuldokBalance,
-  validateWalletAddress,
   verifyEmail,
   resendVerification,
   refreshUserBalances,
   verifyPayment,
   createXummPayload,
   getPayloadStatus,
-  internalVerifyPayment,
   testUserVerification,
   createSendTokenPayload,
+  getTuldokTransactions
 }; 
